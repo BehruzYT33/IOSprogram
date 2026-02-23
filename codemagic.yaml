@@ -1,11 +1,85 @@
 workflows:
-  flutter-ios:
-    name: Flutter iOS Build
+  flutter-ios-16-pro-max:
+    name: Flutter iOS Build (iPhone 16 Pro Max)
     max_build_duration: 60
-
+    instance_type: mac_mini_m2
+    
     environment:
       flutter: stable
-
+      xcode: latest
+      cocoapods: default
+    
+    cache:
+      cache_paths:
+        - ~/.pub-cache
+        - $FLUTTER_ROOT/.pub-cache
+        - ios/Pods
+        - ios/.symlinks
+    
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+        - pattern: develop
+          include: true
+          source: true
+        - pattern: release/*
+          include: true
+          source: true
+    
     scripts:
-      - flutter pub get
-      - flutter build ios --release --no-codesign
+      - name: Flutter Clean
+        script: |
+          flutter clean
+          rm -rf ios/Pods
+          rm -rf ios/.symlinks
+      
+      - name: Get Dependencies
+        script: |
+          flutter pub get
+          cd ios && pod install --repo-update
+      
+      - name: Code Analysis
+        script: |
+          flutter analyze
+          flutter test
+      
+      - name: Build iOS for iPhone 16 Pro Max
+        script: |
+          flutter build ios --release --no-codesign \
+            --target-platform ios \
+            --ios-language objc \
+            --tree-shake-icons \
+            --split-debug-info=build/app/outputs/symbols \
+            --obfuscate
+      
+      - name: Generate IPA
+        script: |
+          mkdir -p build/ios/ipa
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r ../ipa/Flutter_iOS_16_Pro_Max.ipa Payload
+      
+      - name: Archive Artifacts
+        script: |
+          echo "Build completed for iPhone 16 Pro Max"
+          echo "Artifacts location: build/ios/ipa/"
+    
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/ios/archive/*.xcarchive
+      - build/app/outputs/symbols/**/*
+      - flutter_drive.log
+    
+    publishing:
+      email:
+        recipients:
+          - team@example.com
+        notify:
+          success: true
+          failure: true
